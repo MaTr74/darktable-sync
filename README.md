@@ -4,6 +4,8 @@ Auto-sync your Darktable database and photos between different computers with a 
 
 Since only file synchronization is performed, only one Darktable instance should run at a time.
 
+The installation is currently written and tested on (K)Ubuntu 25.04 only.
+
 ## Features ✨
 - 🔄 Bidirectional sync between local machines and a server 
 - ⏲️ Automatic sync every 5 minutes via systemd timer

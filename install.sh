@@ -3,11 +3,11 @@
 set -e
 
 ### 🔧 Default Configuration (can be overridden by .env file)
-NAS_USER="${NAS_USER:-$USER}"           # Default: current user
-NAS_SSH_PORT="${NAS_SSH_PORT:-22}"      # Default: standard SSH port
-NAS_IP="${NAS_IP:-192.168.1.100}"       # Default: common local network
-NAS_DB_DIR="${NAS_DB_DIR:-/volume1/Darktable/darktable_db}"
-NAS_PHOTO_DIR="${NAS_PHOTO_DIR:-/volume1/Darktable/photo_library}"
+SERVER_USER="${SERVER_USER:-$USER}"           # Default: current user
+SERVER_SSH_PORT="${SERVER_SSH_PORT:-22}"      # Default: standard SSH port
+SERVER_IP="${SERVER_IP:-192.168.1.100}"       # Default: common local network
+SERVER_DB_DIR="${SERVER_DB_DIR:-/volume1/Darktable/darktable_db}"
+SERVER_PHOTO_DIR="${SERVER_PHOTO_DIR:-/volume1/Darktable/photo_library}"
 LOCAL_PHOTO_DIR="${PHOTO_DIR:-$HOME/Pictures/raw}"
 LOCAL_DARKTABLE_DB_DIR="${DARKTABLE_DB_DIR:-$HOME/.config/darktable}"
 BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
@@ -33,11 +33,11 @@ fi
 
 ### 📝 Show effective configuration
 echo "Using configuration:"
-echo "NAS_USER:        $NAS_USER"
-echo "NAS_IP:          $NAS_IP"
-echo "NAS_SSH_PORT:    $NAS_SSH_PORT"
-echo "NAS_DB_DIR:      $NAS_DB_DIR"
-echo "NAS_PHOTO_DIR:   $NAS_PHOTO_DIR"
+echo "SERVER_USER:        $SERVER_USER"
+echo "SERVER_IP:          $SERVER_IP"
+echo "SERVER_SSH_PORT:    $SERVER_SSH_PORT"
+echo "SERVER_DB_DIR:      $SERVER_DB_DIR"
+echo "SERVER_PHOTO_DIR:   $SERVER_PHOTO_DIR"
 echo "PHOTO_DIR:       $LOCAL_PHOTO_DIR"
 echo "DARKTABLE_DB_DIR:$LOCAL_DARKTABLE_DB_DIR"
 echo "BIN_DIR:         $BIN_DIR"
@@ -67,24 +67,24 @@ if [ ! -d "$LOCAL_DARKTABLE_DB_DIR" ]; then
     exit 1
 fi
 
-# Check if NAS is reachable
-if ping -c 1 "$NAS_IP" &>/dev/null; then
-    echo "✅ NAS is reachable: $NAS_IP"
+# Check if Server is reachable
+if ping -c 1 "$SERVER_IP" &>/dev/null; then
+    echo "✅ Server is reachable: $SERVER_IP"
 
-    if ! ssh -p "$NAS_SSH_PORT" "$NAS_USER@$NAS_IP" "[ -d '$NAS_DB_DIR' ]"; then
-        echo "❌ Remote directory missing on NAS: $NAS_DB_DIR"
+    if ! ssh -p "$SERVER_SSH_PORT" "$SERVER_USER@$SERVER_IP" "[ -d '$SERVER_DB_DIR' ]"; then
+        echo "❌ Remote directory missing on Server: $SERVER_DB_DIR"
         echo "👉 Please create it or adjust the path."
         exit 1
     fi
 
-    if ! ssh -p "$NAS_SSH_PORT" "$NAS_USER@$NAS_IP" "[ -d '$NAS_PHOTO_DIR' ]"; then
-        echo "❌ Remote directory missing on NAS: $NAS_PHOTO_DIR"
+    if ! ssh -p "$SERVER_SSH_PORT" "$SERVER_USER@$SERVER_IP" "[ -d '$SERVER_PHOTO_DIR' ]"; then
+        echo "❌ Remote directory missing on Server: $SERVER_PHOTO_DIR"
         echo "👉 Please create it or adjust the path."
         exit 1
     fi
 else
-    echo "⚠️ NAS not reachable: $NAS_IP"
-    echo "➡️ Sync will fail until NAS is online."
+    echo "⚠️ Server not reachable: $SERVER_IP"
+    echo "➡️ Sync will fail until Server is online."
 fi
 
 ### ✅ Create sync script
@@ -119,37 +119,37 @@ if [[ "\$1" == "--with-notify-start-stop" ]]; then
   SHOW_NOTIFY_START_STOP=true
 fi
 
-if ping -c 1 $NAS_IP &>/dev/null; then
+if ping -c 1 $SERVER_IP &>/dev/null; then
     export DISPLAY=:0
     SYNC_LOG=\$(mktemp)
-    log "🔃 NAS is reachable – starting sync..."
+    log "🔃 Server is reachable – starting sync..."
     log "Log file: \$SYNC_LOG"
 
     if [ "\$SHOW_NOTIFY_START_STOP" = true ]; then
         notify-send "Darktable Sync" "🔄 Sync started..." -t 3000
     fi
 
-    log "⬆️ Uploading Darktable DB to NAS..."
+    log "⬆️ Uploading Darktable DB to Server..."
     UPLOAD_LOG1=\$(mktemp)
-    rsync -avh --itemize-changes -e "ssh -p $NAS_SSH_PORT" "$LOCAL_DARKTABLE_DB_DIR/" "$NAS_USER@$NAS_IP:$NAS_DB_DIR/" 2>&1 | tee -a "\$SYNC_LOG" "\$UPLOAD_LOG1"
+    rsync -avh --itemize-changes -e "ssh -p $SERVER_SSH_PORT" "$LOCAL_DARKTABLE_DB_DIR/" "$SERVER_USER@$SERVER_IP:$SERVER_DB_DIR/" 2>&1 | tee -a "\$SYNC_LOG" "\$UPLOAD_LOG1"
     SENT1=\$(count_synced_files "\$UPLOAD_LOG1" "up")
     rm "\$UPLOAD_LOG1"
 
-    log "⬆️ Uploading photos to NAS..."
+    log "⬆️ Uploading photos to Server..."
     UPLOAD_LOG2=\$(mktemp)
-    rsync -avh --itemize-changes -e "ssh -p $NAS_SSH_PORT" "$LOCAL_PHOTO_DIR/" "$NAS_USER@$NAS_IP:$NAS_PHOTO_DIR/" 2>&1 | tee -a "\$SYNC_LOG" "\$UPLOAD_LOG2"
+    rsync -avh --itemize-changes -e "ssh -p $SERVER_SSH_PORT" "$LOCAL_PHOTO_DIR/" "$SERVER_USER@$SERVER_IP:$SERVER_PHOTO_DIR/" 2>&1 | tee -a "\$SYNC_LOG" "\$UPLOAD_LOG2"
     SENT2=\$(count_synced_files "\$UPLOAD_LOG2" "up")
     rm "\$UPLOAD_LOG2"
 
-    log "⬇️ Downloading DB back from NAS..."
+    log "⬇️ Downloading DB back from Server..."
     DOWNLOAD_LOG1=\$(mktemp)
-    rsync -avh --itemize-changes -e "ssh -p $NAS_SSH_PORT" "$NAS_USER@$NAS_IP:$NAS_DB_DIR/" "$LOCAL_DARKTABLE_DB_DIR/" 2>&1 | tee -a "\$SYNC_LOG" "\$DOWNLOAD_LOG1"
+    rsync -avh --itemize-changes -e "ssh -p $SERVER_SSH_PORT" "$SERVER_USER@$SERVER_IP:$SERVER_DB_DIR/" "$LOCAL_DARKTABLE_DB_DIR/" 2>&1 | tee -a "\$SYNC_LOG" "\$DOWNLOAD_LOG1"
     RECEIVED1=\$(count_synced_files "\$DOWNLOAD_LOG1" "down")
     rm "\$DOWNLOAD_LOG1"
 
-    log "⬇️ Downloading photos from NAS..."
+    log "⬇️ Downloading photos from Server..."
     DOWNLOAD_LOG2=\$(mktemp)
-    rsync -avh --itemize-changes -e "ssh -p $NAS_SSH_PORT" "$NAS_USER@$NAS_IP:$NAS_PHOTO_DIR/" "$LOCAL_PHOTO_DIR/" 2>&1 | tee -a "\$SYNC_LOG" "\$DOWNLOAD_LOG2"
+    rsync -avh --itemize-changes -e "ssh -p $SERVER_SSH_PORT" "$SERVER_USER@$SERVER_IP:$SERVER_PHOTO_DIR/" "$LOCAL_PHOTO_DIR/" 2>&1 | tee -a "\$SYNC_LOG" "\$DOWNLOAD_LOG2"
     RECEIVED2=\$(count_synced_files "\$DOWNLOAD_LOG2" "down")
     rm "\$DOWNLOAD_LOG2"
 
@@ -170,7 +170,7 @@ if ping -c 1 $NAS_IP &>/dev/null; then
 
     rm -f "\$SYNC_LOG"
 else
-    log "❌ NAS not reachable – skipping sync."
+    log "❌ Server not reachable – skipping sync."
 fi
 EOF
 
@@ -232,7 +232,7 @@ Type=Application
 Terminal=false
 Categories=Graphics;
 StartupNotify=true
-Keywords=Darktable;Photo;Sync;NAS;Rsync;
+Keywords=Darktable;Photo;Sync;Server;Rsync;
 EOF
 
 chmod +x "$DESKTOP_SHORTCUT"
@@ -247,7 +247,7 @@ Type=Application
 Terminal=false
 Categories=Utility;
 StartupNotify=true
-Keywords=Darktable;Photo;Sync;NAS;Schedule;
+Keywords=Darktable;Photo;Sync;Server;Schedule;
 EOF
 
 chmod +x "$SYNC_ONLY_SHORTCUT"
@@ -262,4 +262,4 @@ echo ""
 echo "✅ Setup complete."
 echo ""
 echo "🖱 You can start Darktable via 'Darktable with Sync' in your application menu."
-echo "🕒 Sync will run every 5 minutes automatically when the NAS is online."
+echo "🕒 Sync will run every 5 minutes automatically when the Server is online."
